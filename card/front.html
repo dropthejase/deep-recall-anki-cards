@@ -1,0 +1,807 @@
+<div class="card-front">
+  <div class="stripe"></div>
+  <div class="body">
+    <div class="breadcrumb" id="breadcrumb">{{Deck}}</div>
+    <div class="question">{{Front}}</div>
+  </div>
+</div>
+
+<div class="writebox" id="writebox">
+  <div class="write-tabs">
+    <button type="button" id="tab-type" class="write-tab on">Type</button>
+    <button type="button" id="tab-draw" class="write-tab">Draw</button>
+    <label class="ai-switch" id="ai-switch">
+      <input type="checkbox" id="ai-on" />
+      <span>AI feedback</span>
+    </label>
+  </div>
+  <div class="ai-status" id="ai-status"></div>
+
+  <div id="pane-type">
+    <textarea id="typed" rows="5" placeholder="Type your answer"></textarea>
+  </div>
+
+  <div id="pane-draw" style="display: none">
+    <div class="sheet" id="sheet">
+      <div class="sheet-top">
+        <div class="sheet-head" id="sheet-head"></div>
+      </div>
+      <div class="sheet-scroll" id="sheet-scroll">
+        <canvas id="pad"></canvas>
+      </div>
+      <div class="write-tools">
+        <button type="button" id="undo">Undo</button>
+        <button type="button" id="clear">Clear</button>
+        <button type="button" id="mode">Drawing: on</button>
+        <button type="button" id="expand">Expand</button>
+        <label class="ignore-finger" id="ignore-label" title="Stops your palm or fingers from drawing while you write with a pen or stylus (Apple Pencil, S Pen, Surface Pen). Leave it off with a rubber-tipped stylus.">
+          <input type="checkbox" id="ignore-finger" />
+          <span>Ignore finger</span>
+        </label>
+        <span class="sheet-tip" id="tip">Use two fingers to scroll</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_deeprecall-ai.js"></script>
+<script>
+  (function () {
+    // Kept in the page, the session and Anki's storage, because the phone apps may reload the
+    // page when the answer is shown.
+    var keep = {
+      setItem: function (k, v) {
+        try { sessionStorage.setItem(k, v); } catch (e) {}
+        try { localStorage.setItem("write_" + k, v); } catch (e) {}
+      },
+      getItem: function (k) {
+        var v = null;
+        try { v = sessionStorage.getItem(k); } catch (e) {}
+        if (!v) { try { v = localStorage.getItem("write_" + k); } catch (e) {} }
+        return v;
+      },
+      removeItem: function (k) {
+        try { sessionStorage.removeItem(k); } catch (e) {}
+        try { localStorage.removeItem("write_" + k); } catch (e) {}
+      },
+    };
+
+    // How many levels of the deck name to show above the question (the last ones; all if fewer).
+    var CRUMB_LEVELS = 3;
+    var el = document.getElementById("breadcrumb");
+    // The deck's full name, read before the breadcrumb is tidied; used to remember Draw per deck.
+    var deckKey = el ? "writeMode:" + el.textContent.trim() : "";
+    var aiKey = el ? "ai:" + el.textContent.trim() : "";
+    if (el) {
+      var parts = el.textContent.split("::").map(function (s) { return s.trim(); });
+      parts = parts.slice(-CRUMB_LEVELS);
+      el.innerHTML = parts
+        .map(function (part, i) {
+          var cls = i === parts.length - 1 ? "crumb crumb-current" : "crumb";
+          return '<span class="' + cls + '">' + part + "</span>";
+        })
+        .join('<span class="crumb-sep">&rsaquo;</span>');
+    }
+
+    var box = document.getElementById("writebox");
+    if (!box) return;
+
+    // A new question starts with nothing written.
+    window.__typed = "";
+    window.__drawing = "";
+    window.__drawingAi = "";
+    try {
+      keep.removeItem("typed");
+      keep.removeItem("drawing");
+      keep.removeItem("drawingAi");
+    } catch (e) {}
+
+    var t = document.getElementById("typed");
+    var c = document.getElementById("pad");
+    var paneType = document.getElementById("pane-type");
+    var paneDraw = document.getElementById("pane-draw");
+    var tabType = document.getElementById("tab-type");
+    var tabDraw = document.getElementById("tab-draw");
+
+    // Taps and swipes inside the writing area belong to the writing area, not to Anki's gestures.
+    ["touchstart", "touchmove", "touchend"].forEach(function (name) {
+      box.addEventListener(name, function (e) { e.stopPropagation(); }, { passive: true });
+    });
+
+    // ── Typed ──
+    // Typing "* " or "- " at the start of a line makes a bullet, and Enter carries the bullet on.
+    function bulletise(e) {
+      var v = t.value;
+      var pos = t.selectionStart;
+      var lineStart = v.lastIndexOf("\n", pos - 1) + 1;
+      if (e && e.inputType && e.inputType.indexOf("insert") === 0 && v.charAt(pos - 1) === "\n") {
+        var prevStart = lineStart >= 2 ? v.lastIndexOf("\n", lineStart - 2) + 1 : 0;
+        var prev = v.slice(prevStart, lineStart - 1);
+        if (prev === "• ") {
+          t.value = v.slice(0, prevStart) + v.slice(lineStart);
+          t.selectionStart = t.selectionEnd = prevStart;
+        } else if (prev.indexOf("• ") === 0) {
+          t.value = v.slice(0, lineStart) + "• " + v.slice(lineStart);
+          t.selectionStart = t.selectionEnd = pos + 2;
+        }
+        return;
+      }
+      var line = v.slice(lineStart, pos);
+      if (line === "* " || line === "- ") {
+        t.value = v.slice(0, lineStart) + "• " + v.slice(pos);
+        t.selectionStart = t.selectionEnd = lineStart + 2;
+      }
+    }
+    t.addEventListener("input", function (e) {
+      bulletise(e);
+      window.__typed = t.value;
+      try { keep.setItem("typed", t.value); } catch (e) {}
+    });
+
+    // ── Drawn ──
+    // Strokes are lists of points in pixels from the top left of the pad, so the same writing can
+    // be shown on the small pad and on the expanded sheet.
+    var sheet = document.getElementById("sheet");
+    var sheetHead = document.getElementById("sheet-head");
+    var sheetScroll = document.getElementById("sheet-scroll");
+    var modeButton = document.getElementById("mode");
+    var expandButton = document.getElementById("expand");
+    // "Two fingers to scroll" only means something on a touch screen.
+    if (!(navigator.maxTouchPoints > 0)) document.getElementById("tip").style.display = "none";
+    // "Ignore finger": with a pen or stylus, a resting palm or hand must not draw. Kept per device.
+    var ignoreBox = document.getElementById("ignore-finger");
+    if (!(navigator.maxTouchPoints > 0)) document.getElementById("ignore-label").style.display = "none";
+    function ignoringFinger() {
+      try { return localStorage.getItem("dr:ignoreFinger") === "1"; } catch (e) { return false; }
+    }
+    ignoreBox.checked = ignoringFinger();
+    ignoreBox.addEventListener("change", function () {
+      saveSetting("dr:ignoreFinger", ignoreBox.checked ? "1" : "0");
+    });
+    var strokes = [];
+    var live = null;
+    var drawing = true;
+    var expanded = false;
+    var g;
+    var paper = 0;
+    var activePointer = null;
+    var touches = {};
+    var touchCount = 0;
+    var scrollingSheet = false;
+    // Keeps the expanded pad under what phone browsers allow for a canvas.
+    var MAX_PIXELS = 10000000;
+
+    function styleLine(ctx) {
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#222";
+      ctx.fillStyle = "#222";
+    }
+
+    function paint(ctx, stroke) {
+      if (stroke.length === 1) {
+        ctx.beginPath();
+        ctx.arc(stroke[0].x, stroke[0].y, ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+      ctx.beginPath();
+      ctx.moveTo(stroke[0].x, stroke[0].y);
+      for (var i = 1; i < stroke.length; i++) ctx.lineTo(stroke[i].x, stroke[i].y);
+      ctx.stroke();
+    }
+
+    // On the small pad, everything written is shrunk to fit it. On the expanded sheet it is 1.
+    var zoom = 1;
+
+    function redraw() {
+      if (!g) return;
+      var r = c.getBoundingClientRect();
+      g.clearRect(0, 0, r.width / zoom, r.height / zoom);
+      strokes.forEach(function (stroke) { paint(g, stroke); });
+      if (live) paint(g, live);
+    }
+
+    function fitZoom(width, height) {
+      if (expanded || strokes.length === 0) return 1;
+      var maxX = 1;
+      var maxY = 1;
+      strokes.forEach(function (stroke) {
+        stroke.forEach(function (p) {
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+        });
+      });
+      return Math.max(0.1, Math.min(1, (width - 8) / (maxX + 8), (height - 8) / (maxY + 8)));
+    }
+
+    // Resetting the drawing surface clears it and repaints everything, so it is only done when the
+    // size really changed. Phone browsers send "resize" events while the page is scrolled.
+    var fitted = "";
+
+    function fit(force) {
+      var ratio = window.devicePixelRatio || 1;
+      var r = c.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      var key = Math.round(r.width) + "x" + Math.round(r.height) + "@" + ratio + (expanded ? "e" : "s");
+      if (!force && key === fitted) return;
+      fitted = key;
+      zoom = fitZoom(r.width, r.height);
+      c.width = Math.max(1, Math.round(r.width * ratio));
+      c.height = Math.max(1, Math.round(r.height * ratio));
+      g = c.getContext("2d");
+      g.setTransform(ratio * zoom, 0, 0, ratio * zoom, 0, 0);
+      styleLine(g);
+      // Keep the pen the same thickness on screen when the writing is shrunk.
+      g.lineWidth = 2.5 / zoom;
+      redraw();
+    }
+
+    // Pictures of everything written, cropped to the writing: one to show on the back, and one for
+    // the AI. The AI one is made as big as the 512 px limit allows, with thinner lines when the
+    // writing is small, because small handwriting drawn with a thick pen turns into blobs.
+    var AI_EDGE = 512;
+
+    function save() {
+      if (strokes.length === 0) {
+        window.__drawing = "";
+        window.__drawingAi = "";
+        try { keep.removeItem("drawing"); keep.removeItem("drawingAi"); } catch (e) {}
+        return;
+      }
+      var minX = 1e9;
+      var minY = 1e9;
+      var maxX = 0;
+      var maxY = 0;
+      strokes.forEach(function (stroke) {
+        stroke.forEach(function (p) {
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+        });
+      });
+      var width = Math.ceil(maxX - minX + 24);
+      var height = Math.ceil(maxY - minY + 24);
+
+      function render(scale, lineWidth) {
+        var out = document.createElement("canvas");
+        out.width = Math.max(1, Math.round(width * scale));
+        out.height = Math.max(1, Math.round(height * scale));
+        var o = out.getContext("2d");
+        o.fillStyle = "#fff";
+        o.fillRect(0, 0, out.width, out.height);
+        o.scale(scale, scale);
+        o.translate(12 - minX, 12 - minY);
+        styleLine(o);
+        o.lineWidth = lineWidth;
+        strokes.forEach(function (stroke) { paint(o, stroke); });
+        return out.toDataURL("image/png");
+      }
+
+      var longest = Math.max(width, height);
+      var shown = render(Math.min(2, Math.sqrt(4000000 / (width * height))), 2.5);
+      var forAi = render(Math.min(6, AI_EDGE / longest), Math.max(1, Math.min(2.5, longest / 60)));
+      window.__drawing = shown;
+      window.__drawingAi = forAi;
+      try {
+        keep.setItem("drawing", shown);
+        keep.setItem("drawingAi", forAi);
+      } catch (e) {}
+    }
+
+    // Making the two pictures is slow on a phone, so it waits until the pen has been still.
+    var saveTimer = null;
+    function scheduleSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(flushSave, 250);
+    }
+    function flushSave() {
+      if (saveTimer === null) return;
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      save();
+    }
+
+    function pos(e) {
+      var r = c.getBoundingClientRect();
+      return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom };
+    }
+
+    // The expanded sheet starts two screens tall and keeps a screen of room below the writing.
+    function sizePaper() {
+      if (!expanded) {
+        var had = c.style.height !== "";
+        c.style.height = "";
+        return had;
+      }
+      var visible = sheetScroll.clientHeight;
+      var ratio = window.devicePixelRatio || 1;
+      var cap = Math.floor(MAX_PIXELS / (ratio * ratio * Math.max(1, sheetScroll.clientWidth)));
+      var lowest = 0;
+      strokes.forEach(function (stroke) {
+        stroke.forEach(function (p) { if (p.y > lowest) lowest = p.y; });
+      });
+      var wanted = Math.max(visible, Math.min(cap, Math.max(visible * 2, lowest + visible)));
+      // Steps of 100 px, so a few pixels of change in the screen size never nudge the sheet.
+      wanted = Math.ceil(wanted / 100) * 100;
+      var before = paper;
+      if (wanted > paper) paper = wanted;
+      c.style.height = paper + "px";
+      return paper !== before;
+    }
+
+    function setExpanded(on) {
+      flushSave();
+      expanded = on;
+      sheet.className = "sheet" + (on ? " expanded" : "");
+      document.documentElement.style.overflow = on ? "hidden" : "";
+      c.style.touchAction = on || drawing ? "none" : "pan-y";
+      if (on) {
+        var q = document.querySelector(".card-front .question");
+        sheetHead.innerHTML = q ? q.innerHTML : "";
+        paper = 0;
+      }
+      sizePaper();
+      fit(true);
+      if (on) sheetScroll.scrollTop = 0;
+      expandButton.textContent = on ? "Done" : "Expand";
+    }
+
+    c.addEventListener("pointerdown", function (e) {
+      if (e.pointerType === "touch") {
+        touches[e.pointerId] = e.clientY;
+        touchCount++;
+        if (expanded && touchCount >= 2) {
+          // A second finger scrolls the sheet instead of writing.
+          scrollingSheet = true;
+          live = null;
+          activePointer = null;
+          redraw();
+          return;
+        }
+      }
+      if (scrollingSheet || activePointer !== null) return;
+      if (e.pointerType === "touch" && ignoringFinger()) return;
+      // A pen always draws; a finger draws on the sheet, or on the small pad while Drawing is on.
+      if (!drawing && !expanded && e.pointerType !== "pen") return;
+      activePointer = e.pointerId;
+      try { c.setPointerCapture(e.pointerId); } catch (err) {}
+      live = [pos(e)];
+      paint(g, live);
+      e.preventDefault();
+    });
+    c.addEventListener("pointermove", function (e) {
+      if (scrollingSheet) {
+        var before = touches[e.pointerId];
+        if (before !== undefined) {
+          sheetScroll.scrollTop -= (e.clientY - before) / Math.max(1, touchCount);
+          touches[e.pointerId] = e.clientY;
+        }
+        e.preventDefault();
+        return;
+      }
+      if (e.pointerId !== activePointer || !live) return;
+      var p = pos(e);
+      var from = live[live.length - 1];
+      live.push(p);
+      g.beginPath();
+      g.moveTo(from.x, from.y);
+      g.lineTo(p.x, p.y);
+      g.stroke();
+      e.preventDefault();
+    });
+    function release(e) {
+      if (touches[e.pointerId] !== undefined) {
+        delete touches[e.pointerId];
+        touchCount = Math.max(0, touchCount - 1);
+        if (touchCount === 0) scrollingSheet = false;
+      }
+      if (e.pointerId !== activePointer) return;
+      var stroke = live;
+      live = null;
+      activePointer = null;
+      if (stroke && stroke.length > 0) {
+        strokes.push(stroke);
+        var grew = sizePaper();
+        scheduleSave();
+        // When the sheet grows, the drawing surface must grow with it, or it is stretched.
+        if (grew) fit(true);
+      }
+    }
+    c.addEventListener("pointerup", release);
+    c.addEventListener("pointercancel", release);
+    ["touchstart", "touchmove", "touchend"].forEach(function (name) {
+      c.addEventListener(
+        name,
+        function (e) {
+          if (drawing || expanded) e.preventDefault();
+        },
+        { passive: false }
+      );
+    });
+
+    modeButton.addEventListener("click", function () {
+      drawing = !drawing;
+      c.style.touchAction = drawing ? "none" : "pan-y";
+      modeButton.textContent = drawing ? "Drawing: on" : "Scrolling: on";
+    });
+    document.getElementById("undo").addEventListener("click", function () {
+      strokes.pop();
+      redraw();
+      scheduleSave();
+    });
+    document.getElementById("clear").addEventListener("click", function () {
+      strokes = [];
+      redraw();
+      scheduleSave();
+    });
+    expandButton.addEventListener("click", function () { setExpanded(!expanded); });    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && expanded) setExpanded(false);
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") flushSave();
+    });
+    window.addEventListener("pagehide", flushSave);
+    window.addEventListener("resize", function () {
+      sizePaper();
+      fit();
+    });
+
+    // ── Type / Draw ──
+    function show(which) {
+      var typing = which === "type";
+      paneType.style.display = typing ? "" : "none";
+      paneDraw.style.display = typing ? "none" : "";
+      tabType.className = "write-tab" + (typing ? " on" : "");
+      tabDraw.className = "write-tab" + (typing ? "" : " on");
+      if (!typing) fit(true);
+    }
+    function choose(which) {
+      show(which);
+      try { if (deckKey) { if (window.DRAI) window.DRAI.store.set(deckKey, which); else localStorage.setItem(deckKey, which); } } catch (e) {}
+    }
+    tabType.addEventListener("click", function () { choose("type"); });
+    tabDraw.addEventListener("click", function () { choose("draw"); });
+
+    // AI feedback: off until switched on here, then on for every card in this deck until switched off.
+    // Which provider and model to use, and the saved keys, are per device and shared by every deck
+    // (see _deeprecall-ai.js). The settings open by themselves while something is missing.
+    var aiBox = document.getElementById("ai-on");
+    var aiStatus = document.getElementById("ai-status");
+    var AI = window.DRAI;
+    var panelOpen = false;
+    var customPending = {};
+    var localModels = null;
+    var localError = "";
+    var localLoading = false;
+
+    function make(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    }
+    function put(parent, tag, cls, text) {
+      var e = make(tag, cls, text);
+      parent.appendChild(e);
+      return e;
+    }
+
+    function say(text) {
+      aiStatus.innerHTML = "";
+      if (text) put(aiStatus, "span", "", text);
+    }
+
+    function modelLabel(provider) {
+      var id = AI.modelFor(provider);
+      var m = AI.findModel(provider, id);
+      return m ? m.label : id;
+    }
+
+    function loadLocal() {
+      if (localLoading) return;
+      localLoading = true;
+      var provider = AI.getConfig().provider;
+      var def = AI.PROVIDERS[provider];
+      AI.listLocal(provider, AI.getConfig()[def.urlKey]).then(
+        function (models) {
+          localModels = models;
+          localError = "";
+          // Pick one when none is chosen yet, preferring a model that can see images.
+          if (!AI.modelFor(provider) && models.length) {
+            var pick = models[0];
+            models.forEach(function (m) { if (pick.vision !== true && m.vision === true) pick = m; });
+            AI.setModel(provider, pick.id);
+          }
+        },
+        function (error) {
+          localModels = [];
+          localError = error && error.kind === "nomodel" ? error.message
+            : "Could not reach " + def.label + ". Is it running on this computer?" +
+              (provider === "lmstudio" ? " Turn on Local API server and CORS in LM Studio under Settings, Local Model API." : "");
+        }
+      ).then(function () {
+        localLoading = false;
+        // The provider may have been changed while this was loading: then the list is not for it.
+        if (AI.getConfig().provider !== provider) localModels = null;
+        render();
+      });
+    }
+
+    function render() {
+      aiStatus.innerHTML = "";
+      if (!aiBox.checked) return;
+      if (!AI) { say("The AI file (_deeprecall-ai.js) is missing from this device's media. Sync Anki, then reopen the card."); return; }
+      var cfg = AI.getConfig();
+      var provider = cfg.provider;
+      var def = AI.PROVIDERS[provider];
+      if (AI.keyState(provider) !== "ready" || !AI.modelFor(provider)) panelOpen = true;
+
+      if (!panelOpen) {
+        put(aiStatus, "span", "", def.label + " · " + modelLabel(provider));
+        var open = put(aiStatus, "button", "ai-button ai-secondary", "Settings");
+        open.type = "button";
+        open.addEventListener("click", function () { panelOpen = true; render(); });
+        return;
+      }
+
+      var panel = put(aiStatus, "div", "ai-panel");
+      var message = make("p", "ai-msg", "");
+
+      // Provider
+      var row = put(panel, "label", "ai-row");
+      put(row, "span", "ai-row-label", "Provider");
+      var providerSelect = put(row, "select", "ai-select");
+      AI.ORDER.forEach(function (id) {
+        var o = put(providerSelect, "option", "", AI.PROVIDERS[id].menuLabel || AI.PROVIDERS[id].label);
+        o.value = id;
+      });
+      providerSelect.value = provider;
+      providerSelect.addEventListener("change", function () {
+        AI.setConfig({ provider: providerSelect.value });
+        localModels = null;
+        render();
+      });
+
+      // Model
+      var modelRow = put(panel, "label", "ai-row");
+      put(modelRow, "span", "ai-row-label", "Model");
+      var modelSelect = put(modelRow, "select", "ai-select");
+      var current = AI.modelFor(provider);
+      var note = make("p", "ai-note-small", "");
+      if (def.local) {
+        if (localModels === null) {
+          loadLocal();
+          put(modelSelect, "option", "", "Looking for models…");
+        } else {
+          localModels.forEach(function (m) {
+            var o = put(modelSelect, "option", "", m.id + (m.vision === false ? " (text only)" : ""));
+            o.value = m.id;
+          });
+          // Any model name can be typed, for example one that is not installed yet.
+          var otherModel = put(modelSelect, "option", "", "Other…");
+          otherModel.value = "__other";
+          var chosen = localModels.filter(function (m) { return m.id === current; })[0];
+          modelSelect.value = chosen ? current : "__other";
+          if (chosen && chosen.vision === false) note.textContent = "This model cannot read images. Typed answers will work; drawn answers will not.";
+        }
+        modelSelect.addEventListener("change", function () {
+          AI.setModel(provider, modelSelect.value === "__other" ? "" : modelSelect.value);
+          render();
+        });
+      } else {
+        var known = !!AI.findModel(provider, current) && !customPending[provider];
+        def.models.forEach(function (m) {
+          var o = put(modelSelect, "option", "", m.label);
+          o.value = m.id;
+        });
+        if (def.custom) { var other = put(modelSelect, "option", "", "Other…"); other.value = "__other"; }
+        modelSelect.value = known ? current : def.custom ? "__other" : def.defaultModel;
+        var entry = AI.findModel(provider, current);
+        if (entry && entry.note) note.textContent = entry.note;
+        modelSelect.addEventListener("change", function () {
+          if (modelSelect.value === "__other") {
+            customPending[provider] = true;
+            render();
+            return;
+          }
+          customPending[provider] = false;
+          AI.setModel(provider, modelSelect.value);
+          render();
+        });
+      }
+      var listed = def.local
+        ? (localModels || []).some(function (m) { return m.id === current; })
+        : !!AI.findModel(provider, current) && !customPending[provider];
+      if ((def.custom || def.local) && !listed && !(def.local && localModels === null)) {
+        var customRow = put(panel, "div", "ai-row");
+        put(customRow, "span", "ai-row-label", "Model name");
+        var customInput = put(customRow, "input", "ai-token");
+        customInput.type = "text";
+        customInput.placeholder = "for example " + (provider === "ollama" ? "gemma4:e4b" : provider === "lmstudio" ? "google/gemma-4-12b-qat" : def.defaultModel);
+        customInput.value = current;
+        customInput.autocomplete = "off";
+        customInput.addEventListener("change", function () {
+          customPending[provider] = false;
+          AI.setModel(provider, customInput.value.trim());
+          render();
+        });
+        note.textContent = provider === "ollama"
+          ? "Use the exact name from `ollama list`. A model that cannot read images will fail on drawn answers; typed answers will still work."
+          : provider === "lmstudio"
+          ? "Use the exact model name shown in LM Studio. A model that cannot read images will fail on drawn answers; typed answers will still work."
+          : "A model that cannot read images will fail on drawn answers. Typed answers will still work.";
+      }
+      if (note.textContent) panel.appendChild(note);
+
+      // The local server's address
+      if (def.local) {
+        var addressRow = put(panel, "div", "ai-row");
+        put(addressRow, "span", "ai-row-label", "Address");
+        var address = put(addressRow, "input", "ai-token");
+        address.type = "text";
+        address.value = cfg[def.urlKey];
+        address.autocomplete = "off";
+        address.addEventListener("change", function () {
+          var patch = {};
+          patch[def.urlKey] = address.value.trim();
+          AI.setConfig(patch);
+          localModels = null;
+          render();
+        });
+        var refresh = put(addressRow, "button", "ai-button ai-secondary", "Refresh");
+        refresh.type = "button";
+        refresh.addEventListener("click", function () { localModels = null; render(); });
+        if (localError) put(panel, "p", "ai-msg", localError);
+        put(panel, "p", "ai-note-small", "Runs on this computer only. It is not available on a phone.");
+      }
+
+      // Key
+      if (def.needsKey) keyArea(panel, provider, def, message);
+      panel.appendChild(message);
+
+      if (AI.keyState(provider) === "ready" && AI.modelFor(provider)) {
+        var done = put(panel, "button", "ai-button", "Done");
+        done.type = "button";
+        done.addEventListener("click", function () { panelOpen = false; render(); });
+      }
+    }
+
+    function keyArea(panel, provider, def, message) {
+      var state = AI.keyState(provider);
+      var noun = provider === "puter" ? "token" : "key";
+      var box = put(panel, "div", "ai-key");
+      function field(placeholder, type) {
+        var i = put(box, "input", "ai-token");
+        i.type = type || "password";
+        i.placeholder = placeholder;
+        i.autocomplete = "off";
+        return i;
+      }
+      function remove(label) {
+        var b = put(box, "button", "ai-button ai-secondary", label);
+        b.type = "button";
+        b.addEventListener("click", function () { AI.removeKey(provider); render(); });
+      }
+
+      if (state === "ready") {
+        put(box, "span", "", def.keyLabel + " saved.");
+        remove("Remove " + noun);
+        // A token saved before passphrases existed can be protected without pasting it again.
+        if (AI.isPlainPuter(provider) && AI.canEncrypt()) {
+          put(box, "p", "ai-note-small", "This " + noun + " is stored without a passphrase. Protect it with one:");
+          var protectPass = field("Choose a passphrase");
+          var protectRepeat = field("Repeat the passphrase");
+          var protect = put(box, "button", "ai-button", "Protect with a passphrase");
+          protect.type = "button";
+          protect.addEventListener("click", function () {
+            if (!protectPass.value || protectPass.value !== protectRepeat.value) {
+              message.textContent = protectPass.value ? "The two passphrases are not the same." : "Choose a passphrase to protect the " + noun + ".";
+              return;
+            }
+            AI.saveKey(provider, AI.getKey(provider), protectPass.value).then(render, function (error) {
+              message.textContent = error && error.message ? error.message : "Could not protect it.";
+            });
+          });
+        }
+        return;
+      }
+
+      if (state === "locked") {
+        put(box, "span", "", "Your " + def.label + " key is locked.");
+        var pass = field("Passphrase");
+        var unlock = put(box, "button", "ai-button", "Unlock");
+        unlock.type = "button";
+        unlock.addEventListener("click", function () {
+          message.textContent = "";
+          AI.unlock(provider, pass.value).then(render, function (error) {
+            message.textContent = error && error.message ? error.message : "Could not unlock.";
+          });
+        });
+        // Works without the passphrase, so forgetting it never locks anyone out.
+        remove("Forgot passphrase? Remove " + noun);
+        return;
+      }
+
+      put(box, "span", "", "Paste your " + def.keyLabel + ".");
+      var link = put(box, "a", "ai-link", "Where do I find it?");
+      link.href = def.keyUrl;
+      link.target = "_blank";
+      link.rel = "noopener";
+      var keyInput = field(def.keyLabel);
+      var passInput = null;
+      var repeatInput = null;
+      // Puter's token is kept as it is on a device that cannot encrypt; the others need to.
+      if (def.secret && (AI.canEncrypt() || provider !== "puter")) {
+        if (!AI.canEncrypt()) {
+          message.textContent = "This device cannot encrypt keys, so " + def.label + " is not available here.";
+          keyInput.disabled = true;
+          return;
+        }
+        passInput = field("Choose a passphrase");
+        repeatInput = field("Repeat the passphrase");
+        put(box, "p", "ai-note-small", "The key is stored scrambled with this passphrase. You type it once each time Anki is opened. If you forget it, you can remove the key and add it again.");
+      }
+      var save = put(box, "button", "ai-button", "Save");
+      save.type = "button";
+      save.addEventListener("click", function () {
+        var key = keyInput.value.trim();
+        if (!key) return;
+        if (passInput && (!passInput.value || passInput.value !== repeatInput.value)) {
+          message.textContent = passInput.value ? "The two passphrases are not the same." : "Choose a passphrase to protect the key.";
+          return;
+        }
+        message.textContent = "Checking your " + def.keyLabel.toLowerCase() + "…";
+        AI.verifyKey(provider, key).then(
+          function () { return AI.saveKey(provider, key, passInput ? passInput.value : ""); },
+          function (error) {
+            var said = AI.describe(error);
+            var timedOut = error && error.message === "timeout";
+            throw new Error(
+              (timedOut ? def.label + " did not respond to that. " : def.label + " did not accept that. ") +
+                (said ? "(" + def.label + " said: " + said + ") " : "") +
+                "Check it and paste it again."
+            );
+          }
+        ).then(
+          function () { render(); },
+          function (error) { message.textContent = error && error.message ? error.message : "Could not save."; }
+        );
+      });
+    }
+
+    function saveSetting(k, v) {
+      if (AI) AI.store.set(k, v);
+      else { try { localStorage.setItem(k, v); } catch (e) {} }
+    }
+
+    // Starts once the desktop add-on (if installed) has handed back the saved settings.
+    function begin() {
+      ignoreBox.checked = ignoringFinger();
+      if (aiBox && aiStatus && aiKey) {
+        try { aiBox.checked = localStorage.getItem(aiKey) === "on"; } catch (e) {}
+        reserve();
+        aiBox.addEventListener("change", function () {
+          saveSetting(aiKey, aiBox.checked ? "on" : "off");
+          reserve();
+          panelOpen = false;
+          render();
+        });
+        render();
+      }
+
+    function reserve() {
+      aiStatus.className = "ai-status" + (aiBox.checked ? " reserve" : "");
+    }
+
+    // A deck starts on Type until you pick Draw in it; after that it opens on what you picked last.
+      var remembered = "type";
+      try { if (deckKey) remembered = localStorage.getItem(deckKey) || "type"; } catch (e) {}
+      show(remembered === "draw" ? "draw" : "type");
+    }
+    if (AI) AI.whenLoaded(begin);
+    else begin();
+  })();
+</script>

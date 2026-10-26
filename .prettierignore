@@ -1,0 +1,6 @@
+node_modules
+dist
+card/*.html
+text-only/*.html
+*.ankiaddon
+package-lock.json
