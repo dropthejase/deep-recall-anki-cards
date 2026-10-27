@@ -2,6 +2,9 @@
 
 The **DeepRecall Anki card template** that allows you to utilise more tactile forms of active recall.
 
+> [!WARNING]
+> DeepRecall is its own note type with two fields, `Front` and `Back`. It does not support cloze or reversed cards, and it has only been tested with Basic cards.
+
 ## Features
 
 - Type your answer, or ✍️ write it by hand on a touch screen, then flip the card and see yours right above the real one.
