@@ -3,7 +3,7 @@
 The **DeepRecall Anki card template** that allows you to utilise more tactile forms of active recall.
 
 > [!WARNING]
-> DeepRecall comes as two note types: `DeepRecall-Basic` (fields `Front` and `Back`) and `DeepRecall-Cloze` (fields `Text` and `Back Extra`). Other note types are not supported. A reversed card works if you swap `Front` and `Back` in the second card type's templates.
+> Only the two note types listed under [Supported note types](#supported-note-types) work. Other note types, including image occlusion, are not supported.
 
 ## Features
 
@@ -11,6 +11,15 @@ The **DeepRecall Anki card template** that allows you to utilise more tactile fo
 - Switch on **AI feedback** to receive AI-generated feedback of your answer compared to the card's reference answer. **Current providers supported**: Puter, Anthropic, OpenAI, Ollama and LM Studio
 
 https://github.com/user-attachments/assets/c254b503-18a9-4756-9154-641c250ec875
+
+## Supported note types
+
+| Your cards                              | Note type          | Fields               | Files to use                                     |
+| --------------------------------------- | ------------------ | -------------------- | ------------------------------------------------ |
+| Question and answer (like Anki's Basic) | `DeepRecall-Basic` | `Front`, `Back`      | [`dist/deeprecall-basic`](dist/deeprecall-basic) |
+| Fill in the blank (like Anki's Cloze)   | `DeepRecall-Cloze` | `Text`, `Back Extra` | [`dist/deeprecall-cloze`](dist/deeprecall-cloze) |
+
+A reversed card works if you add a second card type to `DeepRecall-Basic` with `Front` and `Back` swapped in its templates. Image occlusion, "type in the answer" and note types with other fields are not supported.
 
 ## Install
 

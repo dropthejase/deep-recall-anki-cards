@@ -17,11 +17,14 @@ jobs:
           node-version: 22
       - run: node addon/build.mjs
       - run: |
-          cp dist/cloze/front.html cloze-front.html
-          cp dist/cloze/back.html cloze-back.html
-          cp dist/cloze/style.css cloze-style.css
+          for type in deeprecall-basic deeprecall-cloze; do
+            for file in front.html back.html style.css; do
+              cp "dist/$type/$file" "$type-$file"
+            done
+          done
           gh release create "$GITHUB_REF_NAME" addon/deeprecall.ankiaddon \
-            dist/front.html dist/back.html dist/style.css \
-            cloze-front.html cloze-back.html cloze-style.css --generate-notes
+            deeprecall-basic-front.html deeprecall-basic-back.html deeprecall-basic-style.css \
+            deeprecall-cloze-front.html deeprecall-cloze-back.html deeprecall-cloze-style.css \
+            --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

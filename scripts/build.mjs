@@ -1,7 +1,7 @@
 // Builds the files you paste into Anki. The shared AI code (card/_deeprecall-ai.js) is written into
 // both templates, so each template is one self-contained file and nothing has to sync as media.
 //
-//   node scripts/build.mjs        writes dist/ (Basic) and dist/cloze/ (Cloze)
+//   node scripts/build.mjs        writes dist/deeprecall-basic/ and dist/deeprecall-cloze/
 //
 // One source in card/ makes every note type. A variant lists the lines of the Basic templates that
 // change for it; the build fails if one of those lines is no longer in the source.
@@ -15,13 +15,13 @@ export const VARIANTS = {
   basic: {
     noteType: 'DeepRecall-Basic',
     fields: ['Front', 'Back'],
-    dir: 'dist/',
+    dir: 'dist/deeprecall-basic/',
     swaps: {},
   },
   cloze: {
     noteType: 'DeepRecall-Cloze',
     fields: ['Text', 'Back Extra'],
-    dir: 'dist/cloze/',
+    dir: 'dist/deeprecall-cloze/',
     swaps: {
       'front.html': [
         ['<div class="question">{{Front}}</div>', '<div class="question">{{cloze:Text}}</div>'],

@@ -4,7 +4,7 @@ This takes about five minutes and needs no programming. It adds a new note type 
 
 ## 1. Get the files
 
-Open the [`dist`](../dist) folder in this repository. For ordinary question and answer cards you need `front.html`, `back.html` and `style.css` from it. For cloze cards, use the same three files from [`dist/cloze`](../dist/cloze). In step 3 you open each one and copy its contents with the **Copy raw file** button at the top right of the file view.
+Choose the folder in [`dist`](../dist) for the kind of card you want: [`deeprecall-basic`](../dist/deeprecall-basic) for question and answer cards, or [`deeprecall-cloze`](../dist/deeprecall-cloze) for fill-in-the-blank cards. Each has three files: `front.html`, `back.html` and `style.css`. In step 3 you open each one and copy its contents with the **Copy raw file** button at the top right of the file view.
 
 ## 2. Make a note type
 
@@ -36,7 +36,7 @@ Sync Anki on the computer, then sync on your phone. The note type comes across w
 
 ## Editing the card
 
-Choose **Tools → Manage Note Types →** your DeepRecall note type **→ Cards**, change the front template, back template or styling, and click **Save**. The preview on the right shows the result. Keep a copy of the original files from [`dist/`](../dist) so you can paste them back. An update replaces your edits.
+Choose **Tools → Manage Note Types →** your DeepRecall note type **→ Cards**, change the front template, back template or styling, and click **Save**. The preview on the right shows the result. Keep a copy of the original files from its folder in [`dist/`](../dist) so you can paste them back. An update replaces your edits.
 
 The Anki manual explains [card templates](https://docs.ankiweb.net/templates/intro.html) and [styling](https://docs.ankiweb.net/templates/styling.html).
 

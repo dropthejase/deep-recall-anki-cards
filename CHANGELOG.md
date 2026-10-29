@@ -4,7 +4,7 @@
 
 - A `DeepRecall-Cloze` note type (fields `Text` and `Back Extra`) for cloze cards. The question hides the words, the answer side lists them as the answer, and the model marks what you typed against those words. Cloze notes you already have can be moved over with **Change Note Type**, because the field names match Anki's own Cloze.
 - The Basic note type is now called `DeepRecall-Basic`. Rename an existing `DeepRecall` note type in Anki (**Tools → Manage Note Types → Rename**); its notes and fields are untouched. The install command still finds the old name.
-- The built Cloze templates are in `dist/cloze/`; the Basic ones stay in `dist/`.
+- The built templates are now in one folder for each note type: `dist/deeprecall-basic/` and `dist/deeprecall-cloze/`. The Basic files used to be directly in `dist/`. The release attaches both sets, named for the note type.
 
 ## 0.1.0 (2026-10-26)
 

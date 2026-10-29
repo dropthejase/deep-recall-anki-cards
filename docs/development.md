@@ -10,10 +10,11 @@ card/               the card source
   _deeprecall-ai.js   shared AI code: providers, key storage, add-on storage
 addon/              the optional desktop add-on (Python) and its build script
 scripts/
-  build.mjs           builds dist/ and dist/cloze/ (writes the shared code into both templates)
+  build.mjs           builds dist/<note type>/ (writes the shared code into both templates)
   install.mjs         adds or updates the DeepRecall-Basic and DeepRecall-Cloze note types through AnkiConnect
-dist/               the built Basic templates people copy into Anki (committed)
-  cloze/              the built Cloze templates
+dist/               the built templates people copy into Anki (committed)
+  deeprecall-basic/   one folder for each note type
+  deeprecall-cloze/
 tests/              browser tests
 docs/               guides and notes
 ```
