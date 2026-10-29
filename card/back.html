@@ -61,6 +61,23 @@
         .join('<span class="crumb-sep">&rsaquo;</span>');
     }
 
+    // Cloze cards: the answer is the words that were hidden on the front. Anki shows them inside the
+    // question, so they are copied from there. A normal card has no such block and skips this.
+    var clozeAnswer = document.querySelector(".answer[data-cloze-answer]");
+    if (clozeAnswer) {
+      var hidden = document.querySelectorAll(".card-front .question .cloze");
+      if (hidden.length === 1) clozeAnswer.innerHTML = hidden[0].innerHTML;
+      else if (hidden.length > 1) {
+        var list = document.createElement("ul");
+        for (var h = 0; h < hidden.length; h++) {
+          var li = document.createElement("li");
+          li.innerHTML = hidden[h].innerHTML;
+          list.appendChild(li);
+        }
+        clozeAnswer.appendChild(list);
+      }
+    }
+
     var m = document.getElementById("mine");
     if (!m) return;
     var typed = window.__typed || "";
@@ -125,6 +142,16 @@
     var qEl = document.querySelector(".card-front .question");
     var aEl = document.querySelector(".answer-block .answer");
     var question = qEl ? (qEl.innerText || qEl.textContent || "") : "";
+    // On a cloze card the question shows the answer, so the model is given it with the blanks put back.
+    if (qEl && aEl && aEl.hasAttribute("data-cloze-answer")) {
+      var masked = qEl.cloneNode(true);
+      var blanks = masked.querySelectorAll(".cloze");
+      for (var b = 0; b < blanks.length; b++) blanks[b].textContent = "[...]";
+      question =
+        (masked.textContent || "") +
+        String.fromCharCode(10) +
+        "(A fill-in-the-blank card: [...] marks the missing words, and the reference answer is those words.)";
+    }
     var reference = aEl ? (aEl.innerText || aEl.textContent || "") : "";
 
     var SYSTEM = [

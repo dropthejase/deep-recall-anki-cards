@@ -8,6 +8,7 @@ for (const file of [
   'build-check.mjs',
   'crypto.mjs',
   'breadcrumb.mjs',
+  'cloze.mjs',
   'ollama-address.mjs',
   'drawing.mjs',
   'cloud.mjs',

@@ -264,6 +264,15 @@ body {
   color: #333d4d;
 }
 
+/* Extra notes under a cloze answer; empty when the note has none. */
+.answer-extra {
+  margin-top: 12px;
+}
+
+.answer-extra:empty {
+  display: none;
+}
+
 .answer p + p {
   margin-top: 8px;
 }

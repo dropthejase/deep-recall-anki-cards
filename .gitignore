@@ -4,3 +4,7 @@ node_modules/
 test-results/
 .DS_Store
 demo/
+
+# Private files (imported decks, test data)
+local/
+*.apkg

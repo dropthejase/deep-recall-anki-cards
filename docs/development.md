@@ -10,9 +10,10 @@ card/               the card source
   _deeprecall-ai.js   shared AI code: providers, key storage, add-on storage
 addon/              the optional desktop add-on (Python) and its build script
 scripts/
-  build.mjs           builds dist/ (writes the shared code into both templates)
-  install.mjs         adds or updates the DeepRecall note type through AnkiConnect
-dist/               the built templates people copy into Anki (committed)
+  build.mjs           builds dist/ and dist/cloze/ (writes the shared code into both templates)
+  install.mjs         adds or updates the DeepRecall-Basic and DeepRecall-Cloze note types through AnkiConnect
+dist/               the built Basic templates people copy into Anki (committed)
+  cloze/              the built Cloze templates
 tests/              browser tests
 docs/               guides and notes
 ```
@@ -38,23 +39,30 @@ Install into your own Anki (AnkiConnect add-on needed, Anki open, no Browse or e
 npm run install:card
 ```
 
+## Note types from one source
+
+Every note type is built from the same files in `card/`. `VARIANTS` in `scripts/build.mjs` lists, for each one, its name, its fields, where it is written, and the few lines of the Basic templates that change. Cloze changes the question to `{{cloze:Text}}` and replaces the `{{Back}}` line with an empty answer block (`data-cloze-answer`) and `{{Back Extra}}`. The back template fills that block from the cloze spans Anki puts in the question, and gives the model the question with each span turned back into `[...]`. The build fails if a line it should change is no longer in the source.
+
+To add a note type, add a variant, run the build, and add it to `scripts/install.mjs`. `tests/build-check.mjs` picks it up by itself.
+
 ## Tests
 
-They load the **built** templates in a real browser (Playwright, Chromium) with the card's `{{Front}}`, `{{Back}}` and `{{Deck}}` filled in.
+They load the **built** templates in a real browser (Playwright, Chromium) with the card's `{{Front}}`, `{{Back}}` and `{{Deck}}` filled in. For Cloze, `{{cloze:Text}}` is filled in the way Anki renders it: a `[...]` span on the question side and the hidden words in a span on the answer side.
 
-| File                  | What it checks                                                                                                              |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `build-check.mjs`     | `dist/` is current; every script parses                                                                                     |
-| `crypto.mjs`          | The key store: nothing readable in storage, new salt and IV each time, a changed record or wrong passphrase refused         |
-| `cloud.mjs`           | Claude and OpenAI keys: encrypted storage, locking, forgotten passphrase, request shapes (the provider servers are made up) |
-| `breadcrumb.mjs`      | The deck name above the question: the last three levels, or all when there are fewer                                        |
-| `drawing.mjs`         | Ignore finger: a finger does not draw when it is on, a mouse or pen still does, and the setting is remembered               |
-| `ollama-address.mjs`  | An Ollama address that is not on this computer is refused and nothing is sent to it                                         |
-| `lmstudio-mock.mjs`   | LM Studio against a pretend server: models listed, embedding models hidden, text-only blocked, other addresses refused      |
-| `text-only-model.mjs` | A model that cannot read images never blocks the card                                                                       |
-| `addon.mjs`           | Settings and keys survive a "restart" through a stand-in for the add-on                                                     |
-| `ollama.mjs`          | **Needs Ollama running.** Typed and drawn answers against a real local model: `OLLAMA_MODEL=gemma4:e4b npm run test:ollama` |
-| `lmstudio.mjs`        | **Needs LM Studio running** with the server and CORS on: `LMSTUDIO_URL=http://localhost:1234 npm run test:lmstudio`         |
+| File                  | What it checks                                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `build-check.mjs`     | `dist/` is current; every script parses                                                                                            |
+| `crypto.mjs`          | The key store: nothing readable in storage, new salt and IV each time, a changed record or wrong passphrase refused                |
+| `cloud.mjs`           | Claude and OpenAI keys: encrypted storage, locking, forgotten passphrase, request shapes (the provider servers are made up)        |
+| `breadcrumb.mjs`      | The deck name above the question: the last three levels, or all when there are fewer                                               |
+| `cloze.mjs`           | The Cloze note type: a blank on the question, the hidden words as the answer, `Back Extra` under it, and the model given the blank |
+| `drawing.mjs`         | Ignore finger: a finger does not draw when it is on, a mouse or pen still does, and the setting is remembered                      |
+| `ollama-address.mjs`  | An Ollama address that is not on this computer is refused and nothing is sent to it                                                |
+| `lmstudio-mock.mjs`   | LM Studio against a pretend server: models listed, embedding models hidden, text-only blocked, other addresses refused             |
+| `text-only-model.mjs` | A model that cannot read images never blocks the card                                                                              |
+| `addon.mjs`           | Settings and keys survive a "restart" through a stand-in for the add-on                                                            |
+| `ollama.mjs`          | **Needs Ollama running.** Typed and drawn answers against a real local model: `OLLAMA_MODEL=gemma4:e4b npm run test:ollama`        |
+| `lmstudio.mjs`        | **Needs LM Studio running** with the server and CORS on: `LMSTUDIO_URL=http://localhost:1234 npm run test:lmstudio`                |
 
 What is **not** automated: real calls to Puter, Claude and OpenAI (they need keys and cost money; they were run by hand), the Python add-on inside real Anki, and touch, stylus and scrolling on real phones.
 

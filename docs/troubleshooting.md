@@ -2,7 +2,7 @@
 
 ## The card shows no writing box
 
-The templates were not pasted completely, or the styling is missing. Open **Tools → Manage Note Types → DeepRecall → Cards**, check that the front template, back template and styling match the files in [`dist/`](../dist), and save. The fields must be named `Front` and `Back`.
+The templates were not pasted completely, or the styling is missing. Open **Tools → Manage Note Types**, select your DeepRecall note type and click **Cards**. Check that the front template, back template and styling match the files in [`dist/`](../dist) (or [`dist/cloze/`](../dist/cloze) for cloze), and save. The fields must be named `Front` and `Back` for Basic, and `Text` and `Back Extra` for Cloze.
 
 ## My answer is gone on the answer side
 

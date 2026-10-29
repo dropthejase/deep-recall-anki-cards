@@ -3,7 +3,7 @@
 The **DeepRecall Anki card template** that allows you to utilise more tactile forms of active recall.
 
 > [!WARNING]
-> DeepRecall is its own note type with two fields, `Front` and `Back`. It does not support cloze or reversed cards, and it has only been tested with Basic cards.
+> DeepRecall comes as two note types: `DeepRecall-Basic` (fields `Front` and `Back`) and `DeepRecall-Cloze` (fields `Text` and `Back Extra`). Other note types are not supported. A reversed card works if you swap `Front` and `Back` in the second card type's templates.
 
 ## Features
 
@@ -28,7 +28,7 @@ To use AI feedback, follow the [AI setup guide](docs/ai-setup.md).
 
 ## Status
 
-Version 0.1. Only tested with Basic cards, and not yet on AnkiDroid or Linux. If something does not work, see [troubleshooting](docs/troubleshooting.md).
+Tested with Basic and Cloze cards. Cloze has so far only been tried in Anki for Windows with a local model. Not yet tested on AnkiDroid or Linux. If something does not work, see [troubleshooting](docs/troubleshooting.md).
 
 ## Documentation
 

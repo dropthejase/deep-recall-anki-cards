@@ -17,7 +17,11 @@ jobs:
           node-version: 22
       - run: node addon/build.mjs
       - run: |
+          cp dist/cloze/front.html cloze-front.html
+          cp dist/cloze/back.html cloze-back.html
+          cp dist/cloze/style.css cloze-style.css
           gh release create "$GITHUB_REF_NAME" addon/deeprecall.ankiaddon \
-            dist/front.html dist/back.html dist/style.css --generate-notes
+            dist/front.html dist/back.html dist/style.css \
+            cloze-front.html cloze-back.html cloze-style.css --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,707 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100%;
+}
+
+.card {
+  text-align: left;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto,
+    sans-serif;
+  background: #ffffff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+  Anki appends the back template directly below the front template in the
+  same page on "Show Answer" — it does not replace it. .card-front and
+  .card-back are siblings, not nested. The front always renders first
+  (alone on the question side, immediately followed by .card-back once
+  the answer is shown), so it always takes flat bottom corners / no
+  bottom shadow, and .card-back always takes flat top corners — together
+  they read as one seamless card with no gap or double shadow.
+*/
+
+/* ── Front ── */
+.card-front {
+  background: linear-gradient(155deg, #16233f 0%, #101a30 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  overflow: hidden;
+  display: flex;
+  width: 100%;
+}
+
+.card-front .stripe {
+  width: 5px;
+  background: linear-gradient(180deg, #5b9cf0, #3a6fc4);
+  flex-shrink: 0;
+}
+
+.card-front .body {
+  padding: 26px 28px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.card-front .breadcrumb {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.42);
+  white-space: normal;
+  overflow-wrap: break-word;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.crumb {
+  text-transform: uppercase;
+}
+
+.crumb-current {
+  color: #a8c4e8;
+  font-weight: 600;
+}
+
+.crumb-sep {
+  margin: 0 6px;
+  color: rgba(255, 255, 255, 0.22);
+}
+
+.card-front .question {
+  font-size: 0.98rem;
+  font-weight: 500;
+  line-height: 1.55;
+  color: #eef3fc;
+}
+
+.card-front .question ul,
+.card-front .question ol {
+  padding-left: 20px;
+  margin-top: 6px;
+}
+
+.card-front .question ul li,
+.card-front .question ol li {
+  margin-bottom: 5px;
+}
+
+/* ── Writing area (typed or drawn) ── */
+.writebox {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px 24px;
+  background: #eef2f9;
+  touch-action: manipulation;
+}
+
+#pane-type {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.write-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.write-tab,
+.write-tools button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #16233f;
+  background: #ffffff;
+  border: 1px solid #c9d6ee;
+  border-radius: 6px;
+  padding: 6px 14px;
+}
+
+.write-tab.on {
+  color: #ffffff;
+  background: #3a6fc4;
+  border-color: #3a6fc4;
+}
+
+#typed {
+  display: block;
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: #1f2a3c;
+  background: #ffffff;
+  border: 1px solid #c9d6ee;
+  border-radius: 6px;
+  padding: 9px 12px;
+  outline: none;
+  resize: vertical;
+  flex: 1;
+  min-height: 160px;
+}
+
+#typed:focus {
+  border-color: #3a6fc4;
+}
+
+#pad {
+  display: block;
+  width: 100%;
+  max-width: 700px;
+  height: clamp(200px, 38vh, 440px);
+  margin: 0 auto 8px;
+  background: #ffffff;
+  border: 1px solid #c9d6ee;
+  border-radius: 6px;
+  touch-action: none;
+}
+
+.write-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Your answer, shown on the back ── */
+.section-title {
+  margin: 0 0 18px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+}
+
+/* Your answer and the real answer: a heading each, with no panel around them. */
+.section-title svg {
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: 8px;
+  vertical-align: -0.14em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mine .section-title {
+  color: #3a6fc4;
+}
+
+.mine-drawing {
+  display: block;
+  max-width: 100%;
+  background: #ffffff;
+  border: 1px solid #3a6fc4;
+  border-radius: 6px;
+}
+
+.mine-text {
+  text-align: left;
+  white-space: pre-wrap;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: #333d4d;
+  border: 1px solid #3a6fc4;
+  border-radius: 6px;
+  padding: 9px 12px;
+}
+
+.mine-drawing + .mine-text {
+  margin-top: 10px;
+}
+
+.answer-block .section-title {
+  color: #0a7a4f;
+}
+
+/* A light grey line between your answer and the real answer, only when you wrote something. */
+#mine:not(:empty) + .answer-block {
+  padding-top: 16px;
+  border-top: 1px solid #e2e5ea;
+}
+
+/* ── Back ── */
+.card-back {
+  background: #ffffff;
+  overflow: hidden;
+  width: 100%;
+}
+
+.card-back .body {
+  padding: 24px 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Answer content ── */
+.answer {
+  text-align: left;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: #333d4d;
+}
+
+/* Extra notes under a cloze answer; empty when the note has none. */
+.answer-extra {
+  margin-top: 12px;
+}
+
+.answer-extra:empty {
+  display: none;
+}
+
+.answer p + p {
+  margin-top: 8px;
+}
+
+.answer strong {
+  color: #16233f;
+  font-weight: 600;
+}
+
+.answer em {
+  color: #445068;
+}
+
+.answer ul,
+.answer ol {
+  padding-left: 20px;
+  margin-top: 6px;
+}
+
+.answer ul li,
+.answer ol li {
+  margin-bottom: 5px;
+}
+
+.answer a {
+  color: #3a6fc4;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(58, 111, 196, 0.35);
+}
+
+.answer table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.98rem;
+  margin-top: 4px;
+  margin-bottom: 14px;
+}
+
+.answer table th {
+  background: #f3f6fc;
+  color: #16233f;
+  font-weight: 600;
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 2px solid #dde6f5;
+}
+
+.answer table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f0f2f7;
+  color: #333d4d;
+  vertical-align: top;
+}
+
+.answer table tr:last-child td {
+  border-bottom: 1px solid #dde6f5;
+}
+
+/* ── Tags (yes/no) ── */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  display: inline-block;
+  background: #f3f6fc;
+  border: 1px solid #d3e0f5;
+  border-radius: 5px;
+  padding: 3px 9px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #16233f;
+}
+
+.tag.yes {
+  background: #eafbf3;
+  border-color: #a3e6c8;
+  color: #0a7a4f;
+}
+
+.tag.no {
+  background: #fdf2f2;
+  border-color: #f3b8b8;
+  color: #b23c3c;
+}
+
+/* ── Case / statute pill ── */
+.pill {
+  display: inline-block;
+  background: #f3f6fc;
+  border: 1px solid #d3e0f5;
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 0.68rem;
+  font-style: italic;
+  color: #16233f;
+}
+
+/* ── Mobile ── */
+@media (max-width: 480px) {
+  .card-front .body {
+    padding: 22px 20px;
+  }
+  .card-back .body {
+    padding: 18px 18px 20px;
+  }
+}
+
+/* ── Expandable writing sheet ── */
+.sheet-top,
+.sheet-tip {
+  display: none;
+}
+
+.sheet.expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  background: #16233f;
+}
+
+.sheet.expanded .sheet-top {
+  order: 1;
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.sheet.expanded .sheet-head {
+  flex: 1;
+  min-width: 0;
+  max-height: 25vh;
+  overflow: auto;
+  padding: 4px 16px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #eef3fc;
+  text-align: left;
+}
+
+.sheet.expanded .sheet-scroll {
+  order: 3;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sheet.expanded #pad {
+  width: 100%;
+  max-width: none;
+  aspect-ratio: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Expanded: the question, then the buttons, then the writing sheet. */
+.sheet.expanded .write-tools {
+  order: 2;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px 12px;
+  background: #16233f;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.sheet.expanded #mode {
+  display: none;
+}
+
+/* Expanded: Undo, Clear and Done on one row, Ignore finger on the next, then the tip. */
+.sheet.expanded .ignore-finger {
+  flex-basis: 100%;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.sheet.expanded .sheet-tip {
+  display: block;
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sheet.expanded .write-tools button {
+  color: #eef3fc;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+/* The Expand button reads Done while expanded. */
+.sheet.expanded #expand {
+  color: #ffffff;
+  background: #3a6fc4;
+  border-color: #3a6fc4;
+}
+
+/* ── AI feedback ── */
+.ai-block {
+  margin-top: 4px;
+}
+
+.section-title.ai-title {
+  color: #7a4fd1;
+}
+
+.ai-note {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #6b7a90;
+  text-align: left;
+}
+
+.ai-label {
+  margin: 0 0 4px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #7a4fd1;
+  text-align: left;
+}
+
+.ai-box {
+  padding: 14px 16px 4px;
+  background: #f5f0fc;
+  border: 1px solid #7a4fd1;
+  border-radius: 6px;
+}
+
+.ai-read,
+.ai-text {
+  margin: 0 0 12px;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: #333d4d;
+  text-align: left;
+}
+
+.ai-read {
+  white-space: pre-wrap;
+  font-style: italic;
+}
+
+.ai-rating {
+  margin: 0 0 12px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #7a4fd1;
+  text-align: left;
+}
+
+.ai-list {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  text-align: left;
+  color: #333d4d;
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.ai-list li {
+  margin-bottom: 4px;
+}
+
+.ai-button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #ffffff;
+  background: #7a4fd1;
+  border: 1px solid #7a4fd1;
+  border-radius: 6px;
+  padding: 6px 16px;
+}
+
+.ai-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 0.85rem;
+  color: #6b7a90;
+  text-align: left;
+}
+
+.ai-switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: #7a4fd1;
+}
+
+.write-tabs .ai-switch {
+  margin: 0 0 0 auto;
+}
+
+.ai-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+  color: #6b7a90;
+  text-align: left;
+}
+
+.ai-status.reserve {
+  min-height: 36px;
+}
+
+.ai-status:empty:not(.reserve) {
+  display: none;
+}
+
+.ai-link {
+  color: #3a6fc4;
+}
+
+.ai-token {
+  flex: 1;
+  min-width: 160px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #1f2a3c;
+  background: #ffffff;
+  border: 1px solid #c9d6ee;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.ai-button.ai-secondary {
+  color: #7a4fd1;
+  background: #ffffff;
+}
+
+.ai-seen {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  margin: 0 0 12px;
+  background: #ffffff;
+  border: 1px solid #d9c9f2;
+  border-radius: 6px;
+}
+
+.sheet-scroll {
+  overflow-anchor: none;
+}
+
+.ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.ai-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-row-label {
+  min-width: 76px;
+  color: #6b7a90;
+}
+
+.ai-select {
+  flex: 1;
+  min-width: 160px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #1f2a3c;
+  background: #ffffff;
+  border: 1px solid #c9d6ee;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.ai-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-key .ai-token {
+  flex-basis: 100%;
+}
+
+.ai-note-small,
+.ai-msg {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6b7a90;
+  flex-basis: 100%;
+}
+
+.ai-msg {
+  color: #b3402e;
+}
+
+.ai-msg:empty {
+  display: none;
+}
+
+.ai-panel > .ai-button {
+  align-self: flex-start;
+}
+
+.ignore-finger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #6b7a90;
+}
+
+.ignore-finger input {
+  width: 16px;
+  height: 16px;
+  accent-color: #3a6fc4;
+}

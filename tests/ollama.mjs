@@ -55,6 +55,25 @@ const drawn = await page.locator('#ai-out').innerText();
 console.log('drawn answer ->', JSON.stringify(drawn.slice(0, 300)));
 check('a drawn answer is read and graded', /Completeness: \d of 5/.test(drawn));
 
+// A cloze card: the model is given the blank and the hidden words, and marks what was typed.
+const clozePages = await startPages({ variant: 'cloze', cloze: ['consideration', 'a promise'] });
+const clozeContext = await browser.newContext({ viewport: { width: 420, height: 900 } });
+await clozeContext.addInitScript(`
+  localStorage.setItem('dr:ai', JSON.stringify({ provider: 'ollama', models: { ollama: ${JSON.stringify(model)} } }));
+  localStorage.setItem('ai:Law::Land', 'on');
+  localStorage.setItem('write_typed', 'consideration, and the promise');
+`);
+const clozePage = await clozeContext.newPage();
+await clozePage.goto(clozePages.base + '/back.html');
+await clozePage
+  .locator('.ai-box')
+  .waitFor({ timeout: 120000 })
+  .catch(() => {});
+const cloze = await clozePage.locator('#ai-out').innerText();
+console.log('cloze answer ->', JSON.stringify(cloze.slice(0, 300)));
+check('a cloze answer is graded', /Completeness: \d of 5/.test(cloze));
+clozePages.close();
+
 await browser.close();
 pages.close();
 process.exit(finish() ? 1 : 0);

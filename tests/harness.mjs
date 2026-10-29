@@ -12,18 +12,35 @@ export const DECK = 'Law::Land';
 export const QUESTION = 'What is consideration in contract law?';
 export const ANSWER = 'Something of value given in exchange for a promise.';
 
-function fill(html, deck) {
-  return html.replace('{{Deck}}', deck).replace('{{Front}}', QUESTION).replace('{{Back}}', ANSWER);
+// Anki renders {{cloze:Text}} as a span: "[...]" on the question side, the hidden words on the answer
+// side. `cloze` is the list of hidden words (one per blank).
+function fill(html, deck, side, cloze, extra) {
+  const spans = cloze.map((word) =>
+    side === 'front.html'
+      ? `<span class="cloze" data-cloze="${word}" data-ordinal="1">[...]</span>`
+      : `<span class="cloze" data-ordinal="1">${word}</span>`,
+  );
+  return html
+    .replace('{{Deck}}', deck)
+    .replace('{{Front}}', QUESTION)
+    .replace('{{Back}}', ANSWER)
+    .replace('{{cloze:Text}}', () => `A ${spans[0]} is ${spans[1] ?? 'something'} in law.`)
+    .replace('{{Back Extra}}', extra);
 }
 
-export async function startPages({ deck = DECK } = {}) {
+export async function startPages({
+  deck = DECK,
+  variant = 'basic',
+  cloze = ['x'],
+  extra = '',
+} = {}) {
   const css = readFileSync(root + 'card/style.css', 'utf8');
-  const built = buildCard();
-  const wrap = (html) =>
-    `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>html,body{margin:0}${css.replace(/@import[^;]+;/, '')}</style></head><body><div class="card">${fill(html, deck)}</div></body></html>`;
+  const built = buildCard(variant);
+  const wrap = (html, side) =>
+    `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>html,body{margin:0}${css.replace(/@import[^;]+;/, '')}</style></head><body><div class="card">${fill(html, deck, side, cloze, extra)}</div></body></html>`;
   const pages = {
-    '/front.html': wrap(built['front.html']),
-    '/back.html': wrap(built['back.html']),
+    '/front.html': wrap(built['front.html'], 'front.html'),
+    '/back.html': wrap(built['back.html'], 'back.html'),
   };
   const server = http.createServer((req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
