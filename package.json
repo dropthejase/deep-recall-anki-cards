@@ -1,6 +1,6 @@
 {
   "name": "deep-recall-anki-cards",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "An Anki card where you write or draw your answer, with optional AI feedback.",
   "license": "MIT",
